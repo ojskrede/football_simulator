@@ -9,6 +9,7 @@ extern crate indicatif;
 extern crate rayon;
 
 use std::path::Path;
+use std::time::{Instant};
 use failure::Error;
 
 pub mod data_io;
@@ -29,7 +30,12 @@ pub fn main() -> Result<(), Error> {
     let current_table = table::Table::new_with(&games);
     current_table.print_table();
 
-    let mut simulated_tables = simulate::simulate_rounds_parallel(&[24, 25], &games)?;
+    let start_time0 = Instant::now();
+    let mut simulated_tables = simulate::simulate_rounds_parallel(&[21, 22, 24, 25], &games)?;
+    let total_duration = start_time0.elapsed();
+    println!("Simulation finished, elapsed time {}",
+             total_duration.as_secs() as f64 + total_duration.subsec_nanos() as f64 * 1e-9);
+
     simulated_tables.sort_by(|a, b| b.probability().partial_cmp(&a.probability()).unwrap());
 
     println!("Number of simulations: {}", simulated_tables.len());

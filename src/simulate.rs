@@ -11,7 +11,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use itertools::Itertools;
 use itertools::structs::MultiProduct;
-use std::time::{Duration, Instant};
 
 fn simulated_outcomes(num_games: usize) -> MultiProduct<slice::Iter<'static, GameResult>> {
     let outcomes = &[GameResult::HomeWin, GameResult::AwayWin, GameResult::Draw];
@@ -57,65 +56,32 @@ pub fn simulate_rounds(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<Table>, E
         "[{elapsed} elapsed] {wide_bar:.cyan/white} {percent}% [{eta} remaining] [rendering]",
     ));
 
-    let mut iter_unplayed_duration = Duration::new(0, 0);
-    let mut match_simulation_duration = Duration::new(0, 0);
-    let mut result_probability_duration = Duration::new(0, 0);
-    let mut set_simulated_duration = Duration::new(0, 0);
-    let mut update_games_duration = Duration::new(0, 0);
-    let mut simulate_tables_duration = Duration::new(0, 0);
-    let start_time0 = Instant::now();
     for simulation in simulations {
         //assert_eq!(unplayed_games.clone().len(), simulation.clone().len());
-        //let start_time1 = Instant::now();
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
-            //let start_time2 = Instant::now();
             let (home_goals, away_goals) = match &simulation[ind] {
                 &GameResult::HomeWin => (1, 0),
                 &GameResult::Draw => (0, 0),
                 &GameResult::AwayWin => (0, 1),
             };
-            //match_simulation_duration += start_time2.elapsed();
 
-            //let start_time3 = Instant::now();
             let probability = result_probability(
                 &simulation[ind]
                 );
-            //result_probability_duration += start_time3.elapsed();
 
-            //let start_time4 = Instant::now();
             game.set_result_from_simulated(
                 &simulation[ind],
                 probability,
                 home_goals,
                 away_goals,
                 ).unwrap();
-            //set_simulated_duration += start_time4.elapsed();
         }
-        //iter_unplayed_duration += start_time1.elapsed();
 
-        //let start_time6 = Instant::now();
         let table = original_table.get_updated(unplayed_games.as_slice());
         simulated_tables.push(table);
-        //simulate_tables_duration += start_time6.elapsed();
         //pbar.inc(1);
     }
     //pbar.finish();
-
-    let total_duration = start_time0.elapsed();
-    println!("Simulation finished, elapsed time {}",
-             total_duration.as_secs() as f64 + total_duration.subsec_nanos() as f64 * 1e-9);
-    /*
-    println!("Match simulation:                 {}",
-             match_simulation_duration.as_secs() as f64 + match_simulation_duration.subsec_nanos() as f64 * 1e-9);
-    println!("Result probability:               {}",
-             result_probability_duration.as_secs() as f64 + result_probability_duration.subsec_nanos() as f64 * 1e-9);
-    println!("Set simulated:                    {}",
-             set_simulated_duration.as_secs() as f64 + set_simulated_duration.subsec_nanos() as f64 * 1e-9);
-    println!("Iterate unplayed:                 {}",
-             iter_unplayed_duration.as_secs() as f64 + iter_unplayed_duration.subsec_nanos() as f64 * 1e-9);
-    println!("Simulate tables:                  {}",
-             simulate_tables_duration.as_secs() as f64 + simulate_tables_duration.subsec_nanos() as f64 * 1e-9);
-    */
 
     Ok(simulated_tables)
 }
@@ -138,7 +104,6 @@ pub fn simulate_rounds_parallel(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<
 
     let _ = simulations.par_iter().map(|simulation| {
         //assert_eq!(unplayed_games.clone().len(), simulation.clone().len());
-        println!("Num games in simulation: {}", simulation.len());
         let mut unplayed_games = unplayed_games.clone();
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
             //let game_result = simulation[ind].clone();
@@ -162,7 +127,7 @@ pub fn simulate_rounds_parallel(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<
         let table = original_table.get_updated(unplayed_games.as_slice());
         simulated_tables.lock().unwrap().push(table);
         //pbar.inc(1);
-    });
+    }).count();
     //pbar.finish();
 
     match Arc::try_unwrap(simulated_tables) {
