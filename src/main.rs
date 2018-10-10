@@ -4,7 +4,7 @@ extern crate serde;
 #[macro_use] extern crate serde_derive;
 extern crate csv;
 #[macro_use] extern crate failure;
-#[macro_use] extern crate itertools;
+extern crate itertools;
 extern crate indicatif;
 extern crate rayon;
 
@@ -29,7 +29,7 @@ pub fn main() -> Result<(), Error> {
     let current_table = table::Table::new_with(&games);
     current_table.print_table();
 
-    let mut simulated_tables = simulate::simulate_rounds(&[24, 25], &games)?;
+    let mut simulated_tables = simulate::simulate_rounds_parallel(&[24, 25], &games)?;
     simulated_tables.sort_by(|a, b| b.probability().partial_cmp(&a.probability()).unwrap());
 
     println!("Number of simulations: {}", simulated_tables.len());

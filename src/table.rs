@@ -69,6 +69,45 @@ impl Table {
         }
     }
 
+    pub fn get_updated(&self, games: &[structures::Game]) -> Table {
+        let mut table = self.standings.clone();
+        let mut probability = self.probability;
+
+        for game in games {
+            // We assume that all teams are present
+            // Update home team
+            {
+                table.get_mut(&game.home()).unwrap()
+                     .update_from_game(game.home_goals().unwrap(), game.away_goals().unwrap(), true);
+            }
+            // Update away team
+            {
+                table.get_mut(&game.away()).unwrap()
+                     .update_from_game(game.away_goals().unwrap(), game.home_goals().unwrap(), false);
+            }
+            probability *= game.result_probability().unwrap();
+        }
+
+        let mut table_vec: Vec<(String, structures::Team)> = table.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
+        table_vec.sort_by(|a, b|
+            if b.1.sum_points() == a.1.sum_points() {
+                if b.1.sum_goal_difference() == a.1.sum_goal_difference() {
+                    b.1.sum_goals_scored().cmp(&a.1.sum_goals_scored())
+                } else {
+                    b.1.sum_goal_difference().cmp(&a.1.sum_goal_difference())
+                }
+            } else {
+                b.1.sum_points().cmp(&a.1.sum_points())
+            }
+        );
+
+        Table {
+            standings: table.clone(),
+            sorted_standings: table_vec,
+            probability: probability,
+        }
+    }
+
     pub fn print_table(&self) {
         println!("Table with probability {}", self.probability);
         for (_, team) in self.sorted_standings.iter() {
