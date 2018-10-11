@@ -209,10 +209,11 @@ pub struct Team {
     sum_points: u8,
     sum_goal_difference: i32,
     sum_goals_scored: u8,
+    lexicographical_position: u8,
 }
 
 impl Team {
-    pub fn new(name: &str) -> Team {
+    pub fn new(name: &str, position: u8) -> Team {
         Team {
             name: String::from(name),
             home_result: Aggregate::default(),
@@ -221,11 +222,16 @@ impl Team {
             sum_points: 0,
             sum_goal_difference: 0,
             sum_goals_scored: 0,
+            lexicographical_position: position,
         }
     }
 
     pub fn name(&self) -> String {
         self.name.clone()
+    }
+
+    pub fn lexicographical_position(&self) -> u8 {
+        self.lexicographical_position
     }
 
     pub fn sum_points(&self) -> u8 {

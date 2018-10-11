@@ -5,10 +5,69 @@ use std::collections::HashMap;
 
 use structures;
 
+
+pub fn lexicographical_team_order_from_table(table: &Table) -> [String; 14] {
+    let mut names_vec = Vec::<String>::new();
+    for (team_name, _) in table.team_positions() {
+        names_vec.push(team_name);
+    }
+    names_vec.sort_by(|a, b| a.cmp(&b));
+    let mut names_array = [
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+    ];
+    names_array.clone_from_slice(names_vec.as_slice());
+    names_array
+}
+
+fn lexicographical_team_order_from_games(games: &[structures::Game]) -> [String; 14] {
+    let mut names_vec = Vec::<String>::new();
+    for game in games {
+        if !names_vec.contains(&game.home()) {
+            names_vec.push(game.home());
+        }
+        if !names_vec.contains(&game.away()) {
+            names_vec.push(game.away());
+        }
+    }
+    names_vec.sort_by(|a, b| a.cmp(&b));
+    let mut names_array = [
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+        String::from(""),
+    ];
+    names_array.clone_from_slice(names_vec.as_slice());
+    names_array
+}
+
 #[derive(Clone, Debug)]
 pub struct Table {
     standings: HashMap<String, structures::Team>,
     sorted_standings: Vec<(String, structures::Team)>,
+    team_positions: Vec<(String, u8)>,
     probability: f32,
 }
 
@@ -16,6 +75,7 @@ impl Table {
     pub fn new_with(games: &[structures::Game]) -> Table {
         let mut table = HashMap::<String, structures::Team>::new();
         let mut probability = 1.0;
+        let team_name_order = lexicographical_team_order_from_games(games);
 
         for game in games {
             let home_team_name = game.home();
@@ -30,7 +90,8 @@ impl Table {
                         let team = table.get_mut(&home_team_name).unwrap();
                         team.update_from_game(hg, ag, true);
                     } else {
-                        let mut team = structures::Team::new(&home_team_name);
+                        let pos = team_name_order.iter().position(|ref r| **r == home_team_name).unwrap();
+                        let mut team = structures::Team::new(&home_team_name, pos as u8);
                         team.update_from_game(hg, ag, true);
                         table.insert(home_team_name, team);
                     }
@@ -39,7 +100,8 @@ impl Table {
                         let team = table.get_mut(&away_team_name).unwrap();
                         team.update_from_game(ag, hg, false);
                     } else {
-                        let mut team = structures::Team::new(&away_team_name);
+                        let pos = team_name_order.iter().position(|ref r| **r == away_team_name).unwrap();
+                        let mut team = structures::Team::new(&away_team_name, pos as u8);
                         team.update_from_game(ag, hg, false);
                         table.insert(away_team_name, team);
                     }
@@ -62,9 +124,15 @@ impl Table {
             }
         );
 
+        let mut team_positions = Vec::<(String, u8)>::new();
+        for (pos, (name, _)) in table_vec.iter().enumerate() {
+            team_positions.push((name.clone(), pos as u8));
+        }
+
         Table {
             standings: table.clone(),
             sorted_standings: table_vec,
+            team_positions: team_positions,
             probability: probability,
         }
     }
@@ -101,9 +169,15 @@ impl Table {
             }
         );
 
+        let mut team_positions = Vec::<(String, u8)>::new();
+        for (pos, (name, _)) in table_vec.iter().enumerate() {
+            team_positions.push((name.clone(), pos as u8));
+        }
+
         Table {
             standings: table.clone(),
             sorted_standings: table_vec,
+            team_positions: team_positions,
             probability: probability,
         }
     }
@@ -117,5 +191,13 @@ impl Table {
 
     pub fn probability(&self) -> f32 {
         self.probability
+    }
+
+    pub fn team_positions(&self) -> Vec<(String, u8)> {
+        self.team_positions.clone()
+    }
+
+    pub fn sorted_standings(&self) -> Vec<(String, structures::Team)> {
+        self.sorted_standings.clone()
     }
 }
