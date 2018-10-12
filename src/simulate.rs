@@ -101,21 +101,22 @@ pub fn simulate_rounds(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<Table>, E
 
 pub fn simulate_rounds_parallel(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<Table>, Error> {
     let original_table = Table::new_with(&games);
-    let mut simulated_tables = Arc::new(Mutex::new(Vec::<Table>::new()));
+    let simulated_tables = Arc::new(Mutex::new(Vec::<Table>::new()));
     let mut unplayed_games = Vec::<Game>::new();
     for round in rounds {
         unplayed_games.extend_from_slice(find_unplayed_games_in_round(*round, &games).as_slice());
     }
-    let simulations = simulated_outcomes_as_vec(unplayed_games.len());
-    println!("Simulating {} results from {} games", simulations.len(), unplayed_games.len());
+    let simulations = simulated_outcomes(unplayed_games.len());
+
+    println!("Simulating {} results from {} games", simulations.size_hint().1.unwrap(), unplayed_games.len());
 
     // Progress bar takes about 10 % of the time
-    let pbar = ProgressBar::new(simulations.len() as u64);
+    let pbar = ProgressBar::new(simulations.size_hint().1.unwrap() as u64);
     pbar.set_style(ProgressStyle::default_bar().template(
         "[{elapsed} elapsed] {wide_bar:.cyan/white} {percent}% [{eta} remaining] [rendering]",
     ));
 
-    let _ = simulations.par_iter().map(|simulation| {
+    let _ = simulations.par_bridge().map(|simulation| {
         //assert_eq!(unplayed_games.clone().len(), simulation.clone().len());
         let mut unplayed_games = unplayed_games.clone();
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
@@ -159,22 +160,23 @@ pub fn compute_standing_distributions(
     games: &Vec<Game>,
 ) -> Result<[[u64; 14]; 14], Error> {
     let original_table = Table::new_with(&games);
-    let mut standing_distributions = Arc::new(Mutex::new([[0_u64; 14]; 14]));
+    let standing_distributions = Arc::new(Mutex::new([[0_u64; 14]; 14]));
 
     let mut unplayed_games = Vec::<Game>::new();
     for round in rounds {
         unplayed_games.extend_from_slice(find_unplayed_games_in_round(*round, &games).as_slice());
     }
-    let simulations = simulated_outcomes_as_vec(unplayed_games.len());
-    println!("Simulating {} results from {} games", simulations.len(), unplayed_games.len());
+    let simulations = simulated_outcomes(unplayed_games.len());
+
+    println!("Simulating {} results from {} games", simulations.size_hint().1.unwrap(), unplayed_games.len());
 
     // Progress bar takes about 10 % of the time
-    let pbar = ProgressBar::new(simulations.len() as u64);
+    let pbar = ProgressBar::new(simulations.size_hint().1.unwrap() as u64);
     pbar.set_style(ProgressStyle::default_bar().template(
         "[{elapsed} elapsed] {wide_bar:.cyan/white} {percent}% [{eta} remaining] [rendering]",
     ));
 
-    let _ = simulations.par_iter().map(|simulation| {
+    let _ = simulations.par_bridge().map(|simulation| {
         //assert_eq!(unplayed_games.clone().len(), simulation.clone().len());
         let mut unplayed_games = unplayed_games.clone();
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
