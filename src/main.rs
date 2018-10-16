@@ -17,7 +17,8 @@ use clap::{Arg, App};
 
 pub mod data_io;
 pub mod table;
-pub mod structures;
+pub mod game;
+pub mod team;
 pub mod simulate;
 
 pub fn main() -> Result<(), Error> {
@@ -51,7 +52,7 @@ pub fn main() -> Result<(), Error> {
         None => env::current_dir()?,
     };
 
-    let games = data_io::import_games(&season_fixtures)?;
+    let (games, teams) = data_io::import_games(&season_fixtures)?;
     let rounds = &[25, 26];
 
     for game in games.iter() {
@@ -60,11 +61,12 @@ pub fn main() -> Result<(), Error> {
 
     match matches.value_of("task") {
         Some("tables") => {
-            let current_table = table::Table::new_with(&games);
+            let teams: Vec<team::Team> = teams.values().map(|x| x.clone()).collect();
+            let current_table = table::Table::new_with(&teams);
             current_table.print_table();
 
             let start_time0 = Instant::now();
-            let mut simulated_tables = simulate::simulate_rounds_parallel(rounds, &games)?;
+            let mut simulated_tables = simulate::simulate_rounds_parallel(rounds, &games, &teams)?;
             let total_duration = start_time0.elapsed();
             println!("Simulation finished, elapsed time {}",
                      total_duration.as_secs() as f64 + total_duration.subsec_nanos() as f64 * 1e-9);
@@ -79,11 +81,12 @@ pub fn main() -> Result<(), Error> {
         },
         Some("standings") => {
             let start_time0 = Instant::now();
-            let distributions = simulate::compute_standing_distributions(rounds, &games)?;
+            let teams: Vec<team::Team> = teams.values().map(|x| x.clone()).collect();
+            let distributions = simulate::compute_standing_distributions(rounds, &games, &teams)?;
             let total_duration = start_time0.elapsed();
             println!("Simulation finished, elapsed time {}",
                      total_duration.as_secs() as f64 + total_duration.subsec_nanos() as f64 * 1e-9);
-            let current_table = table::Table::new_with(&games);
+            let current_table = table::Table::new_with(&teams);
             let order_map = table::lexicographical_team_order_from_table(&current_table);
 
             let mut writer = csv::WriterBuilder::new()
