@@ -4,35 +4,36 @@
 use std::slice;
 use std::sync::{Arc, Mutex};
 
-use game::{Game, GameResult};
-use team::Team;
-use table::Table;
+use game;
+use team;
+use table;
 use failure::{Error};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::prelude::*;
 use itertools::Itertools;
 use itertools::structs::MultiProduct;
 
-fn simulated_outcomes(num_games: usize) -> MultiProduct<slice::Iter<'static, GameResult>> {
-    let outcomes = &[GameResult::HomeWin, GameResult::AwayWin, GameResult::Draw];
+fn simulated_outcomes(num_games: usize) -> MultiProduct<slice::Iter<'static, game::GameResult>> {
+    let outcomes = &[game::GameResult::HomeWin, game::GameResult::AwayWin, game::GameResult::Draw];
 
     let simulations = (0..num_games).map(|_| outcomes.iter()).multi_cartesian_product();
     simulations
 }
 
-fn simulated_outcomes_as_vec(num_games: usize) -> Vec<Vec<&'static GameResult>> {
-    let outcomes = &[GameResult::HomeWin, GameResult::AwayWin, GameResult::Draw];
+#[allow(dead_code)]
+fn simulated_outcomes_as_vec(num_games: usize) -> Vec<Vec<&'static game::GameResult>> {
+    let outcomes = &[game::GameResult::HomeWin, game::GameResult::AwayWin, game::GameResult::Draw];
 
     let simulations = (0..num_games).map(|_| outcomes.iter()).multi_cartesian_product();
-    let mut simulations_vec = Vec::<Vec<&GameResult>>::with_capacity(simulations.size_hint().1.unwrap());
+    let mut simulations_vec = Vec::<Vec<&game::GameResult>>::with_capacity(simulations.size_hint().1.unwrap());
     for simulation in simulations {
         simulations_vec.push(simulation);
     }
     simulations_vec
 }
 
-fn find_unplayed_games_in_round(round: u8, games: &[Game]) -> Vec<Game> {
-    let mut unplayed_games = Vec::<Game>::new();
+fn find_unplayed_games_in_round(round: u8, games: &[game::Game]) -> Vec<game::Game> {
+    let mut unplayed_games = Vec::<game::Game>::new();
     for game in games.iter() {
         if game.round() == round && game.game_result().is_none() {
             unplayed_games.push(game.clone());
@@ -41,27 +42,20 @@ fn find_unplayed_games_in_round(round: u8, games: &[Game]) -> Vec<Game> {
     unplayed_games
 }
 
-pub fn result_probability(
-    //home_team: &Team,
-    //away_team: &Team,
-    //games: &[Game],
-    result: &GameResult,
-) -> f32 {
-    match result {
-        GameResult::HomeWin => 0.4,
-        GameResult::AwayWin => 0.35,
-        GameResult::Draw => 0.25,
-    }
-}
-
 pub fn simulate_rounds(
     rounds: &[u8],
-    games: &Vec<Game>,
-    teams: &Vec<Team>,
-    ) -> Result<Vec<Table>, Error> {
-    let original_table = Table::new_with(teams);
-    let mut simulated_tables = Vec::<Table>::new();
-    let mut unplayed_games = Vec::<Game>::new();
+    games: &Vec<game::Game>,
+    teams: &Vec<team::Team>,
+    ) -> Result<Vec<table::Table>, Error> {
+    let mut played_games = Vec::<game::Game>::new();
+    for game in games.iter() {
+        if game.played() {
+            played_games.push(game.clone());
+        }
+    }
+    let original_table = table::Table::new_with(teams, &played_games);
+    let mut simulated_tables = Vec::<table::Table>::new();
+    let mut unplayed_games = Vec::<game::Game>::new();
     for round in rounds {
         unplayed_games.extend_from_slice(find_unplayed_games_in_round(*round, &games).as_slice());
     }
@@ -78,13 +72,16 @@ pub fn simulate_rounds(
         //assert_eq!(unplayed_games.clone().len(), simulation.clone().len());
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
             let (home_goals, away_goals) = match &simulation[ind] {
-                &GameResult::HomeWin => (1, 0),
-                &GameResult::Draw => (0, 0),
-                &GameResult::AwayWin => (0, 1),
+                &game::GameResult::HomeWin => (1, 0),
+                &game::GameResult::Draw => (0, 0),
+                &game::GameResult::AwayWin => (0, 1),
             };
 
-            let probability = result_probability(
-                &simulation[ind]
+            let probability = game::compute_result_probability(
+                &game.home_team(),
+                &game.away_team(),
+                &simulation[ind],
+                game::ResultProbabilityMethod::GameResultAndPointDifference,
                 );
 
             game.set_result_from_simulated(
@@ -106,12 +103,18 @@ pub fn simulate_rounds(
 
 pub fn simulate_rounds_parallel(
     rounds: &[u8],
-    games: &Vec<Game>,
-    teams: &Vec<Team>,
-    ) -> Result<Vec<Table>, Error> {
-    let original_table = Table::new_with(teams);
-    let simulated_tables = Arc::new(Mutex::new(Vec::<Table>::new()));
-    let mut unplayed_games = Vec::<Game>::new();
+    games: &Vec<game::Game>,
+    teams: &Vec<team::Team>,
+    ) -> Result<Vec<table::Table>, Error> {
+    let mut played_games = Vec::<game::Game>::new();
+    for game in games.iter() {
+        if game.played() {
+            played_games.push(game.clone());
+        }
+    }
+    let original_table = table::Table::new_with(teams, &played_games);
+    let simulated_tables = Arc::new(Mutex::new(Vec::<table::Table>::new()));
+    let mut unplayed_games = Vec::<game::Game>::new();
     for round in rounds {
         unplayed_games.extend_from_slice(find_unplayed_games_in_round(*round, &games).as_slice());
     }
@@ -131,12 +134,16 @@ pub fn simulate_rounds_parallel(
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
             //let game_result = simulation[ind].clone();
             let (home_goals, away_goals) = match &simulation[ind] {
-                &GameResult::HomeWin => (1, 0),
-                &GameResult::Draw => (0, 0),
-                &GameResult::AwayWin => (0, 1),
+                &game::GameResult::HomeWin => (1, 0),
+                &game::GameResult::Draw => (0, 0),
+                &game::GameResult::AwayWin => (0, 1),
             };
-            let probability = result_probability(
-                &simulation[ind]
+
+            let probability = game::compute_result_probability(
+                &game.home_team(),
+                &game.away_team(),
+                &simulation[ind],
+                game::ResultProbabilityMethod::GameResultAndPointDifference,
                 );
 
             game.set_result_from_simulated(
@@ -166,13 +173,19 @@ pub fn simulate_rounds_parallel(
 
 pub fn compute_standing_distributions(
     rounds: &[u8],
-    games: &Vec<Game>,
-    teams: &Vec<Team>,
+    games: &Vec<game::Game>,
+    teams: &Vec<team::Team>,
 ) -> Result<[[u64; 14]; 14], Error> {
-    let original_table = Table::new_with(teams);
+    let mut played_games = Vec::<game::Game>::new();
+    for game in games.iter() {
+        if game.played() {
+            played_games.push(game.clone());
+        }
+    }
+    let original_table = table::Table::new_with(teams, &played_games);
     let standing_distributions = Arc::new(Mutex::new([[0_u64; 14]; 14]));
 
-    let mut unplayed_games = Vec::<Game>::new();
+    let mut unplayed_games = Vec::<game::Game>::new();
     for round in rounds {
         unplayed_games.extend_from_slice(find_unplayed_games_in_round(*round, &games).as_slice());
     }
@@ -192,12 +205,16 @@ pub fn compute_standing_distributions(
         for (ind, game) in unplayed_games.iter_mut().enumerate() {
             //let game_result = simulation[ind].clone();
             let (home_goals, away_goals) = match &simulation[ind] {
-                &GameResult::HomeWin => (1, 0),
-                &GameResult::Draw => (0, 0),
-                &GameResult::AwayWin => (0, 1),
+                &game::GameResult::HomeWin => (1, 0),
+                &game::GameResult::Draw => (0, 0),
+                &game::GameResult::AwayWin => (0, 1),
             };
-            let probability = result_probability(
-                &simulation[ind]
+
+            let probability = game::compute_result_probability(
+                &game.home_team(),
+                &game.away_team(),
+                &simulation[ind],
+                game::ResultProbabilityMethod::GameResultAndPointDifference,
                 );
 
             game.set_result_from_simulated(

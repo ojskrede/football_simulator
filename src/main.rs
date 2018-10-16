@@ -53,16 +53,22 @@ pub fn main() -> Result<(), Error> {
     };
 
     let (games, teams) = data_io::import_games(&season_fixtures)?;
-    let rounds = &[25, 26];
+    let rounds = &[25];
 
     for game in games.iter() {
         println!("{}", game);
     }
 
+    let teams: Vec<team::Team> = teams.values().map(|x| x.clone()).collect();
+    let mut played_games = Vec::<game::Game>::new();
+    for game in games.iter() {
+        if game.played() {
+            played_games.push(game.clone());
+        }
+    }
     match matches.value_of("task") {
         Some("tables") => {
-            let teams: Vec<team::Team> = teams.values().map(|x| x.clone()).collect();
-            let current_table = table::Table::new_with(&teams);
+            let current_table = table::Table::new_with(&teams, &played_games);
             current_table.print_table();
 
             let start_time0 = Instant::now();
@@ -75,18 +81,18 @@ pub fn main() -> Result<(), Error> {
 
             println!("Number of simulations: {}", simulated_tables.len());
             simulated_tables[0].print_table();
+            simulated_tables[0].print_latest_round();
             simulated_tables[1].print_table();
             simulated_tables[2].print_table();
             simulated_tables[3].print_table();
         },
         Some("standings") => {
             let start_time0 = Instant::now();
-            let teams: Vec<team::Team> = teams.values().map(|x| x.clone()).collect();
             let distributions = simulate::compute_standing_distributions(rounds, &games, &teams)?;
             let total_duration = start_time0.elapsed();
             println!("Simulation finished, elapsed time {}",
                      total_duration.as_secs() as f64 + total_duration.subsec_nanos() as f64 * 1e-9);
-            let current_table = table::Table::new_with(&teams);
+            let current_table = table::Table::new_with(&teams, &played_games);
             let order_map = table::lexicographical_team_order_from_table(&current_table);
 
             let mut writer = csv::WriterBuilder::new()

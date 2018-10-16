@@ -13,7 +13,7 @@ pub enum GameResult {
     Draw,
 }
 
-enum ResultProbabilityMethod {
+pub enum ResultProbabilityMethod {
     Uniform,
     GameResult,
     GameResultAndPointDifference,
@@ -225,6 +225,14 @@ impl Game {
         self.away_team.name()
     }
 
+    pub fn home_team(&self) -> team::Team {
+        self.home_team.clone()
+    }
+
+    pub fn away_team(&self) -> team::Team {
+        self.away_team.clone()
+    }
+
     pub fn played(&self) -> bool {
         self.played
     }
@@ -256,6 +264,7 @@ impl Game {
         self.away_goals = Some(away_goals);
         self.game_result = Some(result.clone());
         self.result_probability = Some(probability);
+        self.played = true;
 
         if self.home_goals.unwrap() > self.away_goals.unwrap() {
             assert_eq!(self.game_result, Some(GameResult::HomeWin));
@@ -335,7 +344,7 @@ fn old_compute_result_weight(
 ///         R = HomeWin: 1 / (1 + exp(-4d)), truncated at (-1, 1)
 ///         R = AwayWin: 1 / (1 + exp(+4d)), truncated at (-1, 1)
 ///
-fn compute_result_probability(
+pub fn compute_result_probability(
     home: &team::Team,
     away: &team::Team,
     result: &GameResult,
@@ -359,11 +368,17 @@ fn compute_result_probability(
             let win_factor = 4.0;
             let draw_mean = 0.0;
             let draw_var = 0.2;
-            match result {
+            let conditional_prob = match result {
                 GameResult::HomeWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
                 GameResult::AwayWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
                 GameResult::Draw => 1.0 / (2.0 * PI * draw_var).sqrt() * (-(rpd - draw_mean).powi(2) / (2.0 * draw_var)).exp(), // TODO: Change to truncated normal
-            }
+            };
+            let prior = match result {
+                GameResult::HomeWin => 0.5,
+                GameResult::AwayWin => 0.3,
+                GameResult::Draw => 0.2,
+            };
+            prior * conditional_prob
         },
         ResultProbabilityMethod::GameResultAndWeightedPointDifference => {
             // TODO: Implement this
@@ -373,11 +388,17 @@ fn compute_result_probability(
             let win_factor = 4.0;
             let draw_mean = 0.0;
             let draw_var = 0.2;
-            match result {
+            let conditional_prob = match result {
                 GameResult::HomeWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
                 GameResult::AwayWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
                 GameResult::Draw => 1.0 / (2.0 * PI * draw_var).sqrt() * (-(rpd - draw_mean).powi(2) / (2.0 * draw_var)).exp(), // TODO: Change to truncated normal
-            }
+            };
+            let prior = match result {
+                GameResult::HomeWin => 0.5,
+                GameResult::AwayWin => 0.3,
+                GameResult::Draw => 0.2,
+            };
+            prior * conditional_prob
         },
     }
 }

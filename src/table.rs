@@ -68,11 +68,12 @@ pub struct Table {
     standings: HashMap<String, team::Team>,
     sorted_standings: Vec<(String, team::Team)>,
     team_positions: Vec<(String, u8)>,
+    played_games: Vec<game::Game>,
     probability: f32,
 }
 
 impl Table {
-    pub fn new_with(teams: &[team::Team]) -> Table {
+    pub fn new_with(teams: &[team::Team], played_games: &[game::Game]) -> Table {
         let mut table = HashMap::<String, team::Team>::new();
         for team in teams.iter() {
             table.insert(team.name(), team.clone());
@@ -100,6 +101,7 @@ impl Table {
             standings: table.clone(),
             sorted_standings: table_vec,
             team_positions: team_positions,
+            played_games: played_games.to_vec(),
             probability: 1.0,
         }
     }
@@ -154,10 +156,14 @@ impl Table {
             team_positions.push((name.clone(), pos as u8));
         }
 
+        let mut extended_games = self.played_games.clone();
+        extended_games.extend_from_slice(games);
+
         Table {
             standings: table.clone(),
             sorted_standings: table_vec,
             team_positions: team_positions,
+            played_games: extended_games,
             probability: probability,
         }
     }
@@ -166,6 +172,15 @@ impl Table {
         println!("Table with probability {}", self.probability);
         for (_, team) in self.sorted_standings.iter() {
             println!("{}", team.total_as_table_row());
+        }
+    }
+
+    pub fn print_latest_round(&self) {
+        let num_played_games = self.played_games.len();
+        let latest_round = &self.played_games[(num_played_games-7)..];
+        println!("Round {}", latest_round[0].round());
+        for game in latest_round.iter() {
+            println!("{}", game);
         }
     }
 

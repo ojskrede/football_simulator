@@ -26,34 +26,39 @@ pub fn import_games(
     let mut teams = HashMap::<String, team::Team>::new();
     let team_name_order = table::lexicographical_team_order_from_games(&game_records);
     for game_record in game_records {
+        // Get home team and away team from a container, or create them and insert them if they do
+        // not already exist.
         let home_team_name = game_record.home_name();
         let away_team_name = game_record.away_name();
-        //let home_goals = game_record.home_goals();
-        //let away_goals = game_record.away_goals();
 
         let mut home_team = if teams.contains_key(&home_team_name) {
             teams.get(&home_team_name).unwrap().clone()
         } else {
             let pos = team_name_order.iter().position(|ref r| **r == home_team_name).unwrap();
             let team = team::Team::new(&home_team_name, pos as u8);
-            teams.insert(home_team_name, team.clone());
+            teams.insert(home_team_name.clone(), team.clone());
             team
         };
-
         let mut away_team = if teams.contains_key(&away_team_name) {
-            teams.get(&away_team_name).unwrap().clone()
+            teams.get_mut(&away_team_name).unwrap().clone()
         } else {
             let pos = team_name_order.iter().position(|ref r| **r == away_team_name).unwrap();
             let team = team::Team::new(&away_team_name, pos as u8);
-            teams.insert(away_team_name, team.clone());
+            teams.insert(away_team_name.clone(), team.clone());
             team
         };
 
+        // Use teams to update games
         let game = game::Game::new_with(&home_team, &away_team, &game_record);
         if game.played() {
             home_team.update_from_game(game.home_goals().unwrap(), game.away_goals().unwrap(), true);
             away_team.update_from_game(game.away_goals().unwrap(), game.home_goals().unwrap(), false);
         }
+
+        // Then update the team in our container (they are sure to be there now).
+        teams.insert(home_team_name, home_team);
+        teams.insert(away_team_name, away_team);
+
         games.push(game.clone());
     }
     Ok((games, teams))
