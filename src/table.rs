@@ -5,7 +5,6 @@ use std::collections::HashMap;
 
 use structures;
 
-
 pub fn lexicographical_team_order_from_table(table: &Table) -> [String; 14] {
     let mut names_vec = Vec::<String>::new();
     for (team_name, _) in table.team_positions() {
@@ -32,7 +31,7 @@ pub fn lexicographical_team_order_from_table(table: &Table) -> [String; 14] {
     names_array
 }
 
-fn lexicographical_team_order_from_games(games: &[structures::Game]) -> [String; 14] {
+pub fn lexicographical_team_order_from_games(games: &[structures::Game]) -> [String; 14] {
     let mut names_vec = Vec::<String>::new();
     for game in games {
         if !names_vec.contains(&game.home()) {

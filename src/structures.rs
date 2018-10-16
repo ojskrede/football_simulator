@@ -11,32 +11,26 @@ pub enum GameResult {
     Draw,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+
+/// A planned, or played game (or match, but match is a reserved keyword in rust, so we use game in
+/// stead). Optional fields are only Some when the game has been played.
+#[derive(Debug, Clone)]
 pub struct Game {
-    #[serde(rename = "Runde")]
     round: u8,
-    #[serde(rename = "Dato")]
     date: String,
-    #[serde(rename = "Dag")]
     day: String,
-    #[serde(rename = "Tid")]
     time: String,
-    #[serde(rename = "Hjemmelag")]
     home: String,
-    #[serde(rename = "Resultat")]
     result: String,
-    #[serde(rename = "Bortelag")]
     away: String,
-    #[serde(rename = "Bane")]
-    field: String,
-    #[serde(rename = "Turnering")]
+    pitch: String,
     tournament: String,
-    #[serde(rename = "Kampnummer")]
     game_number: usize,
     home_goals: Option<u8>,
     away_goals: Option<u8>,
     game_result: Option<GameResult>,
     result_probability: Option<f32>,
+    result_weight: Option<f32>,
 }
 
 impl fmt::Display for Game {
@@ -64,8 +58,18 @@ impl fmt::Display for Game {
 }
 
 impl Game {
-    pub fn set_result_from_current(&mut self) -> Result<(), Error> {
-        let goals: Vec<&str> = self.result.split("-").collect();
+    pub fn new_with(
+        game_record: &data_io::GameRecord,
+        home_team: &Team,
+        away_team: &Team,
+        ) -> Game {
+
+    }
+
+    pub fn get_result_from_record(
+        game_record: &data_io::GameRecord,
+        ) -> Result<(), Error> {
+        let goals: Vec<&str> = game_record.result.split("-").collect();
 
         let home_goals = match goals[0].trim_left().trim_right().parse::<u8>() {
             Ok(val) => Some(val),
@@ -198,6 +202,10 @@ impl Aggregate {
     fn goals_scored(&self) -> u8 {
         self.goals_scored
     }
+
+    fn num_played(&self) -> u8 {
+        self.num_played
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -246,6 +254,10 @@ impl Team {
         self.sum_goals_scored
     }
 
+    pub fn sum_games_played(&self) -> u8 {
+        self.sum_result.num_played()
+    }
+
     pub fn update_from_game(&mut self, goals_scored: u8, goals_conceded: u8, home: bool) {
         if home {
             self.home_result.update_from_game(goals_scored, goals_conceded);
@@ -264,5 +276,55 @@ impl Team {
                 self.home_result.as_table_row(),
                 self.away_result.as_table_row(),
                 self.sum_result.as_table_row())
+    }
+}
+
+/// Compute a weight that should represent how surprising the result is. Higher weights to more
+/// surprising results than lower weights.
+///
+/// Currently it tries to take into account the point difference between the teams before the
+/// game is played, and if it is a home win, away win, or draw. If we define the relative point
+/// difference (rpd) between the teams as (winner.points - loser.points) / max(1, max_points),
+/// and max_points = 3 * max(winner.rounds_played, loser.rounds_played) (for draw we have the
+/// same except (home.points - away.points). Then, this function gives weights in the following
+/// order (higher to lower)
+///
+/// ```
+///     rpd = -1 and AwayWin
+///     rpd = -1 and HomeWin
+///     rpd = -1 and Draw
+///     rpd = 0 and AwayWin
+///     rpd = 0 and Draw
+///     rpd = 0 and HomeWin
+///     rpd = 1 and Draw
+///     rpd = 1 and AwayWin
+///     rpd = 1 and HomeWin
+/// ```
+///
+/// It could be argued that a draw when rdf=0 is more surprising than one of the teams winning,
+/// but the above gives a simple solution.
+///
+fn compute_result_weight(
+    home: &Team,
+    away: &Team,
+    result: &GameResult,
+) -> f32 {
+    let max_num_played = home.sum_games_played().max(away.sum_games_played()) as f32;
+    match result {
+        GameResult::HomeWin => {
+            let point_difference = home.sum_points() as f32 - away.sum_points() as f32;
+            let rpd = point_difference / max_num_played;
+            (1.0 - rpd + 0.1 * (rpd - 1.0)) / 2.0
+        },
+        GameResult::AwayWin => {
+            let point_difference = away.sum_points() as f32 - home.sum_points() as f32;
+            let rpd = point_difference / max_num_played;
+            (1.0 - rpd + 0.1 * (rpd + 1.0)) / 2.0
+        },
+        GameResult::Draw => {
+            let point_difference = home.sum_points() as f32 - away.sum_points() as f32;
+            let rpd = point_difference / max_num_played;
+            (1.0 - 0.4 * rpd) / 2.0
+        },
     }
 }
