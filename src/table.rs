@@ -3,7 +3,8 @@
 
 use std::collections::HashMap;
 
-use structures;
+use game;
+use team;
 
 pub fn lexicographical_team_order_from_table(table: &Table) -> [String; 14] {
     let mut names_vec = Vec::<String>::new();
@@ -31,14 +32,14 @@ pub fn lexicographical_team_order_from_table(table: &Table) -> [String; 14] {
     names_array
 }
 
-pub fn lexicographical_team_order_from_games(games: &[structures::Game]) -> [String; 14] {
+pub fn lexicographical_team_order_from_games(games: &[game::GameRecord]) -> [String; 14] {
     let mut names_vec = Vec::<String>::new();
     for game in games {
-        if !names_vec.contains(&game.home()) {
-            names_vec.push(game.home());
+        if !names_vec.contains(&game.home_name()) {
+            names_vec.push(game.home_name());
         }
-        if !names_vec.contains(&game.away()) {
-            names_vec.push(game.away());
+        if !names_vec.contains(&game.away_name()) {
+            names_vec.push(game.away_name());
         }
     }
     names_vec.sort_by(|a, b| a.cmp(&b));
@@ -64,53 +65,20 @@ pub fn lexicographical_team_order_from_games(games: &[structures::Game]) -> [Str
 
 #[derive(Clone, Debug)]
 pub struct Table {
-    standings: HashMap<String, structures::Team>,
-    sorted_standings: Vec<(String, structures::Team)>,
+    standings: HashMap<String, team::Team>,
+    sorted_standings: Vec<(String, team::Team)>,
     team_positions: Vec<(String, u8)>,
     probability: f32,
 }
 
 impl Table {
-    pub fn new_with(games: &[structures::Game]) -> Table {
-        let mut table = HashMap::<String, structures::Team>::new();
-        let mut probability = 1.0;
-        let team_name_order = lexicographical_team_order_from_games(games);
-
-        for game in games {
-            let home_team_name = game.home();
-            let away_team_name = game.away();
-            let home_goals = game.home_goals();
-            let away_goals = game.away_goals();
-
-            match (home_goals, away_goals) {
-                (Some(hg), Some(ag)) => {
-                    // Create or update home team
-                    if table.contains_key(&home_team_name) {
-                        let team = table.get_mut(&home_team_name).unwrap();
-                        team.update_from_game(hg, ag, true);
-                    } else {
-                        let pos = team_name_order.iter().position(|ref r| **r == home_team_name).unwrap();
-                        let mut team = structures::Team::new(&home_team_name, pos as u8);
-                        team.update_from_game(hg, ag, true);
-                        table.insert(home_team_name, team);
-                    }
-                    // Create or update away team
-                    if table.contains_key(&away_team_name) {
-                        let team = table.get_mut(&away_team_name).unwrap();
-                        team.update_from_game(ag, hg, false);
-                    } else {
-                        let pos = team_name_order.iter().position(|ref r| **r == away_team_name).unwrap();
-                        let mut team = structures::Team::new(&away_team_name, pos as u8);
-                        team.update_from_game(ag, hg, false);
-                        table.insert(away_team_name, team);
-                    }
-                    probability *= game.result_probability().unwrap();
-                },
-                _ => {},
-            }
+    pub fn new_with(teams: &[team::Team]) -> Table {
+        let mut table = HashMap::<String, team::Team>::new();
+        for team in teams.iter() {
+            table.insert(team.name(), team.clone());
         }
 
-        let mut table_vec: Vec<(String, structures::Team)> = table.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
+        let mut table_vec: Vec<(String, team::Team)> = table.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
         table_vec.sort_by(|a, b|
             if b.1.sum_points() == a.1.sum_points() {
                 if b.1.sum_goal_difference() == a.1.sum_goal_difference() {
@@ -132,11 +100,11 @@ impl Table {
             standings: table.clone(),
             sorted_standings: table_vec,
             team_positions: team_positions,
-            probability: probability,
+            probability: 1.0,
         }
     }
 
-    pub fn get_updated(&self, games: &[structures::Game]) -> Table {
+    pub fn get_updated(&self, games: &[game::Game]) -> Table {
         let mut table = self.standings.clone();
         let mut probability = self.probability;
 
@@ -144,18 +112,31 @@ impl Table {
             // We assume that all teams are present
             // Update home team
             {
-                table.get_mut(&game.home()).unwrap()
-                     .update_from_game(game.home_goals().unwrap(), game.away_goals().unwrap(), true);
+                table.get_mut(&game.home_name())
+                    .unwrap()
+                    .update_from_game(
+                        game.home_goals().unwrap(),
+                        game.away_goals().unwrap(),
+                        true,
+                        );
             }
             // Update away team
             {
-                table.get_mut(&game.away()).unwrap()
-                     .update_from_game(game.away_goals().unwrap(), game.home_goals().unwrap(), false);
+                table.get_mut(&game.away_name())
+                    .unwrap()
+                    .update_from_game(
+                        game.away_goals().unwrap(),
+                        game.home_goals().unwrap(),
+                        false,
+                        );
             }
             probability *= game.result_probability().unwrap();
         }
 
-        let mut table_vec: Vec<(String, structures::Team)> = table.iter().map(|(a, b)| (a.clone(), b.clone())).collect();
+        let mut table_vec: Vec<(String, team::Team)> = table
+            .iter()
+            .map(|(a, b)| (a.clone(), b.clone()))
+            .collect();
         table_vec.sort_by(|a, b|
             if b.1.sum_points() == a.1.sum_points() {
                 if b.1.sum_goal_difference() == a.1.sum_goal_difference() {
@@ -196,7 +177,7 @@ impl Table {
         self.team_positions.clone()
     }
 
-    pub fn sorted_standings(&self) -> Vec<(String, structures::Team)> {
+    pub fn sorted_standings(&self) -> Vec<(String, team::Team)> {
         self.sorted_standings.clone()
     }
 }

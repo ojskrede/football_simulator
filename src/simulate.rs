@@ -4,7 +4,8 @@
 use std::slice;
 use std::sync::{Arc, Mutex};
 
-use structures::{Game, GameResult};
+use game::{Game, GameResult};
+use team::Team;
 use table::Table;
 use failure::{Error};
 use indicatif::{ProgressBar, ProgressStyle};
@@ -53,8 +54,12 @@ pub fn result_probability(
     }
 }
 
-pub fn simulate_rounds(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<Table>, Error> {
-    let original_table = Table::new_with(&games);
+pub fn simulate_rounds(
+    rounds: &[u8],
+    games: &Vec<Game>,
+    teams: &Vec<Team>,
+    ) -> Result<Vec<Table>, Error> {
+    let original_table = Table::new_with(teams);
     let mut simulated_tables = Vec::<Table>::new();
     let mut unplayed_games = Vec::<Game>::new();
     for round in rounds {
@@ -99,8 +104,12 @@ pub fn simulate_rounds(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<Table>, E
     Ok(simulated_tables)
 }
 
-pub fn simulate_rounds_parallel(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<Table>, Error> {
-    let original_table = Table::new_with(&games);
+pub fn simulate_rounds_parallel(
+    rounds: &[u8],
+    games: &Vec<Game>,
+    teams: &Vec<Team>,
+    ) -> Result<Vec<Table>, Error> {
+    let original_table = Table::new_with(teams);
     let simulated_tables = Arc::new(Mutex::new(Vec::<Table>::new()));
     let mut unplayed_games = Vec::<Game>::new();
     for round in rounds {
@@ -158,8 +167,9 @@ pub fn simulate_rounds_parallel(rounds: &[u8], games: &Vec<Game>) -> Result<Vec<
 pub fn compute_standing_distributions(
     rounds: &[u8],
     games: &Vec<Game>,
+    teams: &Vec<Team>,
 ) -> Result<[[u64; 14]; 14], Error> {
-    let original_table = Table::new_with(&games);
+    let original_table = Table::new_with(teams);
     let standing_distributions = Arc::new(Mutex::new([[0_u64; 14]; 14]));
 
     let mut unplayed_games = Vec::<Game>::new();
