@@ -1,7 +1,11 @@
 //! Table
 //!
 
+use std::path::Path;
 use std::collections::HashMap;
+
+use csv;
+use failure::Error;
 
 use game;
 use team;
@@ -173,6 +177,15 @@ impl Table {
         for (_, team) in self.sorted_standings.iter() {
             println!("{}", team.total_as_table_row());
         }
+    }
+
+    pub fn export_table_to_csv(&self, filename: &Path) -> Result<(), Error> {
+        let mut writer = csv::Writer::from_path(filename)?;
+        for (_, team) in self.sorted_standings.iter() {
+            writer.serialize(team.get_record())?;
+        }
+        writer.flush()?;
+        Ok(())
     }
 
     pub fn print_last_rounds(&self, num_rounds: u8) {

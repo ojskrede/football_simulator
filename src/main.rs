@@ -83,7 +83,8 @@ pub fn main() -> Result<(), Error> {
             simulated_tables.sort_by(|a, b| b.probability().partial_cmp(&a.probability()).unwrap());
 
             println!("Number of simulations: {}", simulated_tables.len());
-            for table in simulated_tables.iter() {
+            for (ind, table) in simulated_tables.iter().enumerate() {
+                table.export_table_to_csv(&output_directory.join(&format!("table_{:02}.csv", ind)))?;
                 table.print_table();
                 table.print_last_rounds(2);
             }
