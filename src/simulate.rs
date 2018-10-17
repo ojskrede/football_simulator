@@ -101,10 +101,16 @@ pub fn simulate_rounds(
     Ok(simulated_tables)
 }
 
+pub enum StoreTable {
+    MostProbable(usize),
+    LeastProbable(usize),
+}
+
 pub fn simulate_rounds_parallel(
     rounds: &[u8],
-    games: &Vec<game::Game>,
-    teams: &Vec<team::Team>,
+    games: &[game::Game],
+    teams: &[team::Team],
+    store_table: &StoreTable,
     ) -> Result<Vec<table::Table>, Error> {
     let mut played_games = Vec::<game::Game>::new();
     for game in games.iter() {
@@ -153,9 +159,31 @@ pub fn simulate_rounds_parallel(
                 away_goals,
                 ).unwrap();
         }
-        // Should be possible to do updated_games[ind] = game ???
         let table = original_table.get_updated(unplayed_games.as_slice());
-        simulated_tables.lock().unwrap().push(table);
+
+        match store_table {
+            StoreTable::MostProbable(n) => {
+                simulated_tables.lock().unwrap().push(table);
+                simulated_tables
+                    .lock()
+                    .unwrap()
+                    .sort_by(|a, b| b.probability().partial_cmp(&a.probability()).unwrap());
+                if simulated_tables.lock().unwrap().len() > *n {
+                    let _ = simulated_tables.lock().unwrap().pop();
+                }
+            },
+            StoreTable::LeastProbable(n) => {
+                simulated_tables.lock().unwrap().push(table);
+                simulated_tables
+                    .lock()
+                    .unwrap()
+                    .sort_by(|a, b| a.probability().partial_cmp(&b.probability()).unwrap());
+                if simulated_tables.lock().unwrap().len() > *n {
+                    let _ = simulated_tables.lock().unwrap().pop();
+                }
+            },
+        }
+
         //pbar.inc(1);
     }).count();
     //pbar.finish();

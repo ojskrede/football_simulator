@@ -71,8 +71,11 @@ pub fn main() -> Result<(), Error> {
             let current_table = table::Table::new_with(&teams, &played_games);
             current_table.print_table();
 
+            let store_table = simulate::StoreTable::MostProbable(3);
+
             let start_time0 = Instant::now();
-            let mut simulated_tables = simulate::simulate_rounds_parallel(rounds, &games, &teams)?;
+            let mut simulated_tables = simulate::simulate_rounds_parallel(
+                rounds, &games, &teams, &store_table)?;
             let total_duration = start_time0.elapsed();
             println!("Simulation finished, elapsed time {}",
                      total_duration.as_secs() as f64 + total_duration.subsec_nanos() as f64 * 1e-9);
@@ -80,11 +83,10 @@ pub fn main() -> Result<(), Error> {
             simulated_tables.sort_by(|a, b| b.probability().partial_cmp(&a.probability()).unwrap());
 
             println!("Number of simulations: {}", simulated_tables.len());
-            simulated_tables[0].print_table();
-            simulated_tables[0].print_latest_round();
-            simulated_tables[1].print_table();
-            simulated_tables[2].print_table();
-            simulated_tables[3].print_table();
+            for table in simulated_tables.iter() {
+                table.print_table();
+                table.print_last_rounds(2);
+            }
         },
         Some("standings") => {
             let start_time0 = Instant::now();

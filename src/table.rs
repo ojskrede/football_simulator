@@ -175,11 +175,12 @@ impl Table {
         }
     }
 
-    pub fn print_latest_round(&self) {
+    pub fn print_last_rounds(&self, num_rounds: u8) {
         let num_played_games = self.played_games.len();
-        let latest_round = &self.played_games[(num_played_games-7)..];
-        println!("Round {}", latest_round[0].round());
-        for game in latest_round.iter() {
+        let num_games_to_show = 7 * num_rounds as usize;
+        let games = &self.played_games[(num_played_games-num_games_to_show)..];
+        println!("Round {}", games[0].round());
+        for game in games.iter() {
             println!("{}", game);
         }
     }
