@@ -53,7 +53,7 @@ pub fn main() -> Result<(), Error> {
     };
 
     let (games, teams) = data_io::import_games(&season_fixtures)?;
-    let rounds = &[25];
+    let rounds = &[25, 26];
 
     for game in games.iter() {
         println!("{}", game);

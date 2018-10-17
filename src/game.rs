@@ -304,6 +304,7 @@ impl Game {
 /// It could be argued that a draw when rdf=0 is more surprising than one of the teams winning,
 /// but the above gives a simple solution.
 ///
+#[allow(dead_code)]
 fn old_compute_result_weight(
     home: &team::Team,
     away: &team::Team,
@@ -326,6 +327,32 @@ fn old_compute_result_weight(
             let rpd = point_difference / max_num_played;
             (1.0 - 0.4 * rpd) / 2.0
         },
+    }
+}
+
+fn result_prior(game_result: &GameResult) -> f32 {
+    match game_result {
+        GameResult::HomeWin => 0.4,
+        GameResult::AwayWin => 0.35,
+        GameResult::Draw => 0.25,
+    }
+}
+
+fn point_diff_cond_on_result(
+    home: &team::Team,
+    away: &team::Team,
+    result: &GameResult,
+    ) -> f32 {
+    let max_num_played = home.sum_games_played().max(away.sum_games_played()) as f32;
+    let point_difference = home.sum_points() as f32 - away.sum_points() as f32;
+    let rpd = point_difference / max_num_played;
+    let win_factor = 4.0;
+    let draw_mean = 0.0;
+    let draw_var = 0.2;
+    match result {
+        GameResult::HomeWin => 1.0 / (1.0 + (-win_factor * rpd).exp()),
+        GameResult::AwayWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
+        GameResult::Draw => 1.0 / (2.0 * PI * draw_var).sqrt() * (-(rpd - draw_mean).powi(2) / (2.0 * draw_var)).exp(), // TODO: Change to truncated normal
     }
 }
 
@@ -355,50 +382,14 @@ pub fn compute_result_probability(
             1.0 / 3.0
         },
         ResultProbabilityMethod::GameResult => {
-            match result {
-                GameResult::HomeWin => 0.5,
-                GameResult::AwayWin => 0.3,
-                GameResult::Draw => 0.2,
-            }
+            result_prior(result)
         },
         ResultProbabilityMethod::GameResultAndPointDifference => {
-            let max_num_played = home.sum_games_played().max(away.sum_games_played()) as f32;
-            let point_difference = home.sum_points() as f32 - away.sum_points() as f32;
-            let rpd = point_difference / max_num_played;
-            let win_factor = 4.0;
-            let draw_mean = 0.0;
-            let draw_var = 0.2;
-            let conditional_prob = match result {
-                GameResult::HomeWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
-                GameResult::AwayWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
-                GameResult::Draw => 1.0 / (2.0 * PI * draw_var).sqrt() * (-(rpd - draw_mean).powi(2) / (2.0 * draw_var)).exp(), // TODO: Change to truncated normal
-            };
-            let prior = match result {
-                GameResult::HomeWin => 0.5,
-                GameResult::AwayWin => 0.3,
-                GameResult::Draw => 0.2,
-            };
-            prior * conditional_prob
+            result_prior(result) * point_diff_cond_on_result(home, away, result)
         },
         ResultProbabilityMethod::GameResultAndWeightedPointDifference => {
             // TODO: Implement this
-            let max_num_played = home.sum_games_played().max(away.sum_games_played()) as f32;
-            let point_difference = home.sum_points() as f32 - away.sum_points() as f32;
-            let rpd = point_difference / max_num_played;
-            let win_factor = 4.0;
-            let draw_mean = 0.0;
-            let draw_var = 0.2;
-            let conditional_prob = match result {
-                GameResult::HomeWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
-                GameResult::AwayWin => 1.0 / (1.0 + (win_factor * rpd).exp()),
-                GameResult::Draw => 1.0 / (2.0 * PI * draw_var).sqrt() * (-(rpd - draw_mean).powi(2) / (2.0 * draw_var)).exp(), // TODO: Change to truncated normal
-            };
-            let prior = match result {
-                GameResult::HomeWin => 0.5,
-                GameResult::AwayWin => 0.3,
-                GameResult::Draw => 0.2,
-            };
-            prior * conditional_prob
+            result_prior(result) * point_diff_cond_on_result(home, away, result)
         },
     }
 }
